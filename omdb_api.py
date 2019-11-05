@@ -23,12 +23,12 @@ usable_df = pd.merge(basics_df, ratings_df, on=['titleId'])
 
 movies = usable_df['title'].tolist()
 
-movies_to_try = movies[:1000]
+movies_to_try = movies[948:]
 # api key is user specifc. Micaela has one (limit 1000 a day)
 key = "60f61a52"
 omdb.set_default('apikey', key)
 
-movie_results = pd.DataFrame(columns=['title', 'genre', 'plot'])
+counter = 1
 for m in movies_to_try:
     print(f'movie: {m}')
     movie_dict = {}
@@ -38,12 +38,14 @@ for m in movies_to_try:
         movie_dict['genre'] = res['genre']
         movie_dict['plot'] = res['plot']
         df = pd.DataFrame([movie_dict], columns=movie_dict.keys())
-        movie_results = movie_results.append(movie_dict, ignore_index=True)
-
+        output_path = os.path.join('.', 'movie_data.csv')
+        with open(output_path, 'a', newline='') as out_file:
+            writer = csv.DictWriter(out_file, fieldnames=["title", "genre", "plot"])
+            if counter == 1:
+                writer.writeheader()
+            writer.writerow(movie_dict)
+        print(f"added movie {counter}")
+        counter += 1
     except KeyError as e:
         print(f'response = {res}')
 
-print(f'there are {len(movie_results)} results!')
-output_path = os.path.join('.', 'movie_data.csv')
-with open(output_path, 'w', newline='') as out_file:
-    movie_results.to_csv(out_file, index=False)
