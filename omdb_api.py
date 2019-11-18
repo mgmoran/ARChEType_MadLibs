@@ -20,7 +20,12 @@ ratings_df = pd.read_csv(ratings_path, sep='\t')
 indexNames = ratings_df[(ratings_df['averageRating'] < 9.0) & (ratings_df['numVotes'] <= 500)].index
 ratings_df.drop(indexNames, inplace=True)
 usable_df = pd.merge(basics_df, ratings_df, on=['titleId'])
+<<<<<<< HEAD
 
+=======
+og_csv = os.path.join('.', 'movie_data.csv')
+output_path = os.path.join('.', 'rom_act.csv')
+>>>>>>> 3dcb0bd3ceba73ac893fa6c6fffd3f53f9d0abe0
 movies = usable_df['title'].tolist()
 
 movies_to_try = movies[948:]
@@ -28,6 +33,16 @@ movies_to_try = movies[948:]
 key = "60f61a52"
 omdb.set_default('apikey', key)
 
+<<<<<<< HEAD
+=======
+with open(og_csv) as already_done:
+    dr = csv.DictReader(already_done)
+    already_have = [x['title'] for x in dr]
+
+already_have = set(already_have)
+movies_to_try = [x for x in movies_to_try if not x in already_have]
+
+>>>>>>> 3dcb0bd3ceba73ac893fa6c6fffd3f53f9d0abe0
 counter = 1
 for m in movies_to_try:
     print(f'movie: {m}')
@@ -37,8 +52,23 @@ for m in movies_to_try:
         movie_dict['title'] = res['title']
         movie_dict['genre'] = res['genre']
         movie_dict['plot'] = res['plot']
+<<<<<<< HEAD
         df = pd.DataFrame([movie_dict], columns=movie_dict.keys())
         output_path = os.path.join('.', 'movie_data.csv')
+=======
+        genres = [x.lower() if not x.endswith(',') else x[:-1].lower() for x in movie_dict['genre'].split()]
+        plot = movie_dict['plot'].split()
+
+        #OG FILTER
+        if ('adult' in genres or 'biography' in genres or 'documentary' in genres) and len(plot) <= 30:
+            continue
+
+        # 11/17 filter -- action and romance only
+        if (not 'action' in genres) and (not 'romance' in genres):
+            continue
+
+        df = pd.DataFrame([movie_dict], columns=movie_dict.keys())
+>>>>>>> 3dcb0bd3ceba73ac893fa6c6fffd3f53f9d0abe0
         with open(output_path, 'a', newline='') as out_file:
             writer = csv.DictWriter(out_file, fieldnames=["title", "genre", "plot"])
             if counter == 1:
