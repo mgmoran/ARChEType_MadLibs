@@ -241,8 +241,8 @@ class SuffixFeature(FeatureExtractor):
             tokens: Sequence[str],
             features: Dict[str, float],
     ) -> None:
-        if token.endswith(('er','ar','ist','or','ess')):
-            features['bias'] = 1.0
+        if token.endswith(('er','ar','ist','ian','ier','ur','eur','eer','ster',)):
+            features['suffixfeature[' +repr(relative_idx) + ']'] = 1.0
 
 
 class POSFeature(FeatureExtractor):
@@ -255,7 +255,7 @@ class POSFeature(FeatureExtractor):
             features: Dict[str, float],
     ) -> None:
         POS = nltk.pos_tag([token])
-        features['pos=' + POS[0][1]] = 1.0
+        features['pos[' + repr(relative_idx) +repr(POS[0][1])] = 1.0
 
 class SentimentFeature(FeatureExtractor):
     def __init__(self):
@@ -270,8 +270,8 @@ class SentimentFeature(FeatureExtractor):
     ) -> None:
         scores = self.sid.polarity_scores(token)
         sentiment = max(scores.items(), key=operator.itemgetter(1))[0]
-        if sentiment != 'neu' and sentiment !='compound':
-            features['sentiment=' + str(sentiment)] = 1.0
+        if sentiment != 'compound' and sentiment !='neu':
+            features['sentiment[' + repr(relative_idx) + 'neg'] = 1.0
 
 class TitlecaseFeature(FeatureExtractor):
     def extract(
@@ -563,8 +563,9 @@ if __name__ == "__main__":
                 POSFeature(),
                 SentimentFeature(),
                 WordShapeFeature(),
+                BiasFeature(),
             ],
-            2,
+            1,
         ),
         BILOUEncoder(),
     )
@@ -582,18 +583,18 @@ if __name__ == "__main__":
         ]
         print("\t".join(fields), file=sys.stderr)
 
-    ## Readable output for Span Scores ###
-    # span_scores = span_scoring_counts(gold_dev, dev_predicted)
-    # print("False positives:")
-    # falsepos = span_scores[1]
-    # print(Counter([entity[1] for entity in falsepos]))
-    # print("")
-    # print("15 most common false positive entities:")
-    # print(falsepos.most_common(15))
-    # print("")
-    # falseneg = span_scores[2]
-    # print("False negatives:")
-    # print(Counter([entity[1] for entity in span_scores[2]]))
-    # print("15 most common false negative entities:")
-    # print(falseneg.most_common(15))
-    # print("")
+    # Readable output for Span Scores ###
+    span_scores = span_scoring_counts(gold_dev, dev_predicted)
+    print("False positives:")
+    falsepos = span_scores[1]
+    print(Counter([entity[1] for entity in falsepos]))
+    print("")
+    print("15 most common false positive entities:")
+    print(falsepos.most_common(15))
+    print("")
+    falseneg = span_scores[2]
+    print("False negatives:")
+    print(Counter([entity[1] for entity in span_scores[2]]))
+    print("15 most common false negative entities:")
+    print(falseneg.most_common(15))
+    print("")
