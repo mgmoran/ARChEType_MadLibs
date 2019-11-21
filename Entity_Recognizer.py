@@ -243,9 +243,6 @@ class SuffixFeature(FeatureExtractor):
     ) -> None:
         if token.endswith(('er','ar','ist','ian','ier','ur','eur','eer','ster',)):
             features['suffixfeature[' +repr(relative_idx) + ']'] = 1.0
-        if token.endswith(('er','ar','ist','or','ess')):
-            features['bias'] = 1.0
-
 
 
 class POSFeature(FeatureExtractor):
@@ -259,7 +256,6 @@ class POSFeature(FeatureExtractor):
     ) -> None:
         POS = nltk.pos_tag([token])
         features['pos[' + repr(relative_idx) +repr(POS[0][1])] = 1.0
-        features['pos=' + POS[0][1]] = 1.0
 
 class SentimentFeature(FeatureExtractor):
     def __init__(self):
@@ -276,8 +272,6 @@ class SentimentFeature(FeatureExtractor):
         sentiment = max(scores.items(), key=operator.itemgetter(1))[0]
         if sentiment != 'compound' and sentiment !='neu':
             features['sentiment[' + repr(relative_idx) + 'neg'] = 1.0
-        if sentiment != 'neu' and sentiment !='compound':
-            features['sentiment=' + str(sentiment)] = 1.0
 
 class TitlecaseFeature(FeatureExtractor):
     def extract(
@@ -356,6 +350,7 @@ class CRFsuiteEntityRecognizer:
         self.encoder_type = encoder
         self.tagger = None
 
+    @property
     def encoder(self) -> EntityEncoder:
         return self.encoder_type
 
@@ -437,6 +432,7 @@ class CRFsuiteEntityRecognizer:
         features = self.feature_extractor.extract(tokens)
         return self.tagger.tag(features)
 
+    @encoder.setter
     def encoder(self, value):
         self._encoder = value
 
@@ -554,28 +550,56 @@ def compile_tagged_train_data(annotations):
                 train.append(doc)
     return train[:500], train[500:]
 
-if __name__ == "__main__":
+def templatize(predicted_dev):
+    templates = []
+    for doc in predicted_dev:
+        text = doc.text
+        tokenized = nlp(text)
+        template = list(text) ### all characters
+        labels = []
+        ents = doc.ents
+        for ent in ents:
+            labels.append(ent.label_)
+            start_token = tokenized[ent.start]
+            end_token = tokenized[ent.end -1]
+            start_token_character_offset = start_token.idx
+            end_token_character_end = end_token.idx + len(end_token)
+            for i in range(start_token_character_offset, end_token_character_end):
+                template[i] = '_'
+        templates.append((''.join(template),labels))
+    return templates
+
+def export_templates(dev_predicted):
+    templates = templatize(dev_predicted)
+    with open("Madlibs_Templates.txt",'w') as f:
+        for template in templates:
+            f.write(template[0] + "\n")
+            f.write(", ".join(template[1]))
+            f.write("\n\n")
+
+
+def main():
+    global nlp, crf, train, gold_dev
     nlp = spacy.load("en_core_web_sm", disable=["ner"])
-    annotated_data = ['Jenny_annotations.jsonl', 'micaela_annotation.jsonl', 'molly_annotations.jsonl',
-                      'qingwen_annotations.jsonl']
+    annotated_data = ['Annotation_task/Annotated_data/Jenny_annotations.jsonl',
+                      'Annotation_task/Annotated_data/micaela_annotation.jsonl',
+                      'Annotation_task/Annotated_data/molly_annotations.jsonl',
+                      'Annotation_task/Annotated_data/qingwen_annotations.jsonl']
     crf = CRFsuiteEntityRecognizer(
         WindowedTokenFeatureExtractor(
             [
                 WordVectorFeature("wiki-news-300d-1M-subword.magnitude", 1.0),
                 TokenFeature(),
                 SuffixFeature(),
-                POSFeature(),
                 SentimentFeature(),
                 WordShapeFeature(),
                 BiasFeature(),
             ],
             1,
-            ],
-            2,
         ),
         BILOUEncoder(),
     )
-    crf.tagger =  pycrfsuite.Tagger()
+    crf.tagger = pycrfsuite.Tagger()
     train, gold_dev = compile_tagged_train_data(annotated_data)
     crf.train(train, "ap", {"max_iterations": 40}, "tmp.model")
     dev_predicted = predict_dev_labels(gold_dev)
@@ -589,35 +613,8 @@ if __name__ == "__main__":
         ]
         print("\t".join(fields), file=sys.stderr)
 
-    # Readable output for Span Scores ###
-    span_scores = span_scoring_counts(gold_dev, dev_predicted)
-    print("False positives:")
-    falsepos = span_scores[1]
-    print(Counter([entity[1] for entity in falsepos]))
-    print("")
-    print("15 most common false positive entities:")
-    print(falsepos.most_common(15))
-    print("")
-    falseneg = span_scores[2]
-    print("False negatives:")
-    print(Counter([entity[1] for entity in span_scores[2]]))
-    print("15 most common false negative entities:")
-    print(falseneg.most_common(15))
-    print("")
+    export_templates(dev_predicted)
 
-    ## Readable output for Span Scores ###
-    # span_scores = span_scoring_counts(gold_dev, dev_predicted)
-    # print("False positives:")
-    # falsepos = span_scores[1]
-    # print(Counter([entity[1] for entity in falsepos]))
-    # print("")
-    # print("15 most common false positive entities:")
-    # print(falsepos.most_common(15))
-    # print("")
-    # falseneg = span_scores[2]
-    # print("False negatives:")
-    # print(Counter([entity[1] for entity in span_scores[2]]))
-    # print("15 most common false negative entities:")
-    # print(falseneg.most_common(15))
-    # print("")
 
+if __name__ == "__main__":
+    main()
