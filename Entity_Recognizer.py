@@ -16,6 +16,7 @@ from spacy.language import Language
 import copy
 
 def ingest_json_document(doc_json: Mapping, nlp: Language) -> Doc:
+    """ Creates a Spacy doc from json annotations; maps character indices to Spacy token indices."""
     entities = []
     labels = doc_json["labels"]
     doc = nlp(doc_json["text"])
@@ -53,6 +54,7 @@ def span_prf1_type_map(
     test_docs: Sequence[Doc],
     type_map: Optional[Mapping[str, str]] = None,
 ) -> Dict[str, PRF1]:
+    """Computes p/r/f/ for reference and test docs; optionally takes a "mapping" dict to collapse types."""
     prfs = {}
     values = defaultdict(lambda: defaultdict(int))
     zipped = zip(reference_docs, test_docs)
@@ -173,7 +175,7 @@ class BrownClusterFeature(FeatureExtractor):
                             features["cprefix" + str(p) + "=" + pathstring[0:p]] = 1.0
 
 
-#---------------- Utils/Feature Extractors from HW2 ----------------#
+#---------------- Additional Feature Extractors ----------------#
 
 class WindowedTokenFeatureExtractor:
     def __init__(self, feature_extractors: Sequence[FeatureExtractor], window_size: int):
@@ -349,10 +351,11 @@ class CRFsuiteEntityRecognizer:
         self.feature_extractor = feature_extractor
         self.encoder_type = encoder
         self.tagger = None
-
-    @property
+        
     def encoder(self) -> EntityEncoder:
         return self.encoder_type
+    
+ #---------------- Decoding ----------------#
 
     def decode(self,labels: Sequence[str], tokens: Sequence[Token], doc: Doc) -> List[Span]:
         zipped = list(zip(tokens, labels))
@@ -432,9 +435,17 @@ class CRFsuiteEntityRecognizer:
         features = self.feature_extractor.extract(tokens)
         return self.tagger.tag(features)
 
-    @encoder.setter
     def encoder(self, value):
         self._encoder = value
+        
+    def extract_label(token: tuple) -> str:
+    return token[1][:2]
+
+    def extract_entity(token: tuple) -> str:
+        return token[1][2:]
+
+        
+#---------------- Encoder options and utils ----------------#
 
 class BILOUEncoder(EntityEncoder):
     def encode(self, tokens: Sequence[Token]) -> Sequence[str]:
@@ -468,13 +479,6 @@ class BIOEncoder(EntityEncoder):
 class IOEncoder(EntityEncoder):
     def encode(self, tokens: Sequence[Token]) -> Sequence[str]:
         return [('I-' + token.ent_type_) if token.ent_iob_ else 'O' for token in tokens]
-
-def extract_label(token: tuple) -> str:
-    return token[1][:2]
-
-def extract_entity(token: tuple) -> str:
-    return token[1][2:]
-
 
 
 #---------------- Accuracy & Performance Analysis  ----------------#
@@ -517,27 +521,26 @@ def span_scoring_counts(
                 falseneg.append(ScoringEntity(tuple(ent.text.split()),label))
     return ScoringCounts(Counter(truepos),Counter(falsepos),Counter(falseneg))
 
+#---------------- Data splits/Methods to annotate dev data and templatize it ----------------#
 
-def create_train_and_dev(annotations):
-    global doc, train, gold_dev
-    data = []
-    with open(annotations, encoding="utf8") as f:
-        lines = f.readlines()
-        for line in lines:
-            review = json.loads(line)
-            doc = ingest_json_document(review, nlp)
-            data.append(doc)
-    train = data[:200]
-    gold_dev = data[200:]
-    return (train, gold_dev)
-
+# def create_train_and_dev(annotations):
+#     global doc, train, gold_dev
+#     data = []
+#     with open(annotations, encoding="utf8") as f:
+#         lines = f.readlines()
+#         for line in lines:
+#             review = json.loads(line)
+#             doc = ingest_json_document(review, nlp)
+#             data.append(doc)
+#     train = data[:200]
+#     gold_dev = data[200:]
+#     return (train, gold_dev)
 
 def predict_dev_labels(gold_dev):
     dev = copy.deepcopy(gold_dev)
     for doc in dev:
         doc.ents = []
     return [crf(doc) for doc in dev]
-
 
 def compile_tagged_train_data(annotations):
     train = []
