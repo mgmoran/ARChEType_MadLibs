@@ -1,0 +1,33 @@
+.header_text{
+  color: #4D4E68;
+  font-size: 25px;
+  text-align: center;
+  line-height: 20px;
+}
+.center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  width: 50%;
+  border-radius: 50px
+}
+
+.a {
+  font-weight: bold;
+}
+/* unvisited link */
+a:link, a:visited {
+  font-size: 35px;
+  padding: 50px 50px;
+  height: 70px;
+  width: 30%;
+  margin: 15px;
+  color: #212121;
+  position: relative;
+  text-align: center ;
+  text-decoration: none;
+  vertical-align: top;
+  display: inline-block;
+  border: 1px solid #4D4E68;
+  border-radius: 30px;
+}
