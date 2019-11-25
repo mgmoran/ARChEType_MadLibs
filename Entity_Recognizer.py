@@ -344,6 +344,43 @@ class WordShapeFeature(FeatureExtractor):
         shape = regex.sub(DIGIT_RE, '0', shape)
         features['shape[' + repr(relative_idx) + ']=' + shape] = 1.0
 
+#---------------- Encoder options and utils ----------------#
+
+class BILOUEncoder(EntityEncoder):
+    def encode(self, tokens: Sequence[Token]) -> Sequence[str]:
+        labels = [(token.ent_iob_ + '-' + token.ent_type_) if token.ent_iob_ else 'O' for token in tokens]
+        length = len(labels)
+        for i in range(0, length - 1):
+            token = labels[i]
+            entity = token[2:]
+            label = token[:2]
+            next = labels[i + 1]
+            nextlabel = next[:2]
+            nextentity = next[2:]
+            if nextlabel == 'O' or nextentity != entity or nextlabel == 'B-':
+                if label == 'B-':
+                    labels[i] = 'U-' + entity
+                if label == 'I-':
+                    labels[i] = 'L-' + entity
+        lasttoken = labels[length - 1]
+        lastlabel = lasttoken[:2]
+        lastentity = lasttoken[2:]
+        if lastlabel == 'B-':
+            labels[length - 1] = 'U-' + lastentity
+        if lastlabel == 'I-':
+            labels[length - 1] = 'L-' + lastentity
+        return labels
+
+class BIOEncoder(EntityEncoder):
+    def encode(self,tokens: Sequence[Token]) -> Sequence[str]:
+        return [(token.ent_iob_ + '-' + token.ent_type_) if token.ent_iob_ else 'O' for token in tokens]
+
+class IOEncoder(EntityEncoder):
+    def encode(self, tokens: Sequence[Token]) -> Sequence[str]:
+        return [('I-' + token.ent_type_) if token.ent_iob_ else 'O' for token in tokens]
+
+ #---------------- CRF ----------------#
+
 class CRFsuiteEntityRecognizer:
     def __init__(
         self, feature_extractor: WindowedTokenFeatureExtractor, encoder: EntityEncoder
@@ -354,7 +391,7 @@ class CRFsuiteEntityRecognizer:
         
     def encoder(self) -> EntityEncoder:
         return self.encoder_type
-    
+
  #---------------- Decoding ----------------#
 
     def decode(self,labels: Sequence[str], tokens: Sequence[Token], doc: Doc) -> List[Span]:
@@ -407,7 +444,7 @@ class CRFsuiteEntityRecognizer:
     def train(self, docs: Iterable[Doc], algorithm: str, params: dict, path: str) -> None:
         trainer = pycrfsuite.Trainer(algorithm, verbose=False)
         trainer.set_params(params)
-        encoder = self.encoder
+        encoder = self.encoder()
         for doc in docs:
             for sent in doc.sents:
                 tokens = list(sent)
@@ -434,51 +471,12 @@ class CRFsuiteEntityRecognizer:
     def predict_labels(self, tokens: Sequence[str]) -> List[str]:
         features = self.feature_extractor.extract(tokens)
         return self.tagger.tag(features)
-
-    def encoder(self, value):
-        self._encoder = value
         
-    def extract_label(token: tuple) -> str:
-    return token[1][:2]
+def extract_label(token: tuple) -> str:
+        return token[1][:2]
 
-    def extract_entity(token: tuple) -> str:
+def extract_entity(token: tuple) -> str:
         return token[1][2:]
-
-        
-#---------------- Encoder options and utils ----------------#
-
-class BILOUEncoder(EntityEncoder):
-    def encode(self, tokens: Sequence[Token]) -> Sequence[str]:
-        labels = [(token.ent_iob_ + '-' + token.ent_type_) if token.ent_iob_ else 'O' for token in tokens]
-        length = len(labels)
-        for i in range(0, length - 1):
-            token = labels[i]
-            entity = token[2:]
-            label = token[:2]
-            next = labels[i + 1]
-            nextlabel = next[:2]
-            nextentity = next[2:]
-            if nextlabel == 'O' or nextentity != entity or nextlabel == 'B-':
-                if label == 'B-':
-                    labels[i] = 'U-' + entity
-                if label == 'I-':
-                    labels[i] = 'L-' + entity
-        lasttoken = labels[length - 1]
-        lastlabel = lasttoken[:2]
-        lastentity = lasttoken[2:]
-        if lastlabel == 'B-':
-            labels[length - 1] = 'U-' + lastentity
-        if lastlabel == 'I-':
-            labels[length - 1] = 'L-' + lastentity
-        return labels
-
-class BIOEncoder(EntityEncoder):
-    def encode(self,tokens: Sequence[Token]) -> Sequence[str]:
-        return [(token.ent_iob_ + '-' + token.ent_type_) if token.ent_iob_ else 'O' for token in tokens]
-
-class IOEncoder(EntityEncoder):
-    def encode(self, tokens: Sequence[Token]) -> Sequence[str]:
-        return [('I-' + token.ent_type_) if token.ent_iob_ else 'O' for token in tokens]
 
 
 #---------------- Accuracy & Performance Analysis  ----------------#
@@ -522,19 +520,6 @@ def span_scoring_counts(
     return ScoringCounts(Counter(truepos),Counter(falsepos),Counter(falseneg))
 
 #---------------- Data splits/Methods to annotate dev data and templatize it ----------------#
-
-# def create_train_and_dev(annotations):
-#     global doc, train, gold_dev
-#     data = []
-#     with open(annotations, encoding="utf8") as f:
-#         lines = f.readlines()
-#         for line in lines:
-#             review = json.loads(line)
-#             doc = ingest_json_document(review, nlp)
-#             data.append(doc)
-#     train = data[:200]
-#     gold_dev = data[200:]
-#     return (train, gold_dev)
 
 def predict_dev_labels(gold_dev):
     dev = copy.deepcopy(gold_dev)
@@ -587,7 +572,7 @@ def main():
     annotated_data = ['Annotation_task/Annotated_data/Jenny_annotations.jsonl',
                       'Annotation_task/Annotated_data/micaela_annotation.jsonl',
                       'Annotation_task/Annotated_data/molly_annotations.jsonl',
-                      'Annotation_task/Annotated_data/qingwen_annotations.jsonl']
+                      'Annotation_task/Annotated_data/qingwen_annotations.jsonl',]
     crf = CRFsuiteEntityRecognizer(
         WindowedTokenFeatureExtractor(
             [
@@ -606,7 +591,7 @@ def main():
     train, gold_dev = compile_tagged_train_data(annotated_data)
     crf.train(train, "ap", {"max_iterations": 40}, "tmp.model")
     dev_predicted = predict_dev_labels(gold_dev)
-    scores = span_prf1_type_map(gold_dev, dev_predicted)
+    scores = span_prf1_type_map(gold_dev, dev_predicted,type_map={"ANTAG":"FLAT"})
     rounder = Context(rounding=ROUND_HALF_UP, prec=4)
     for ent_type, score in sorted(scores.items()):
         if ent_type == "":
