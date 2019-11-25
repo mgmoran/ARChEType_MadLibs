@@ -1,10 +1,6 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>computer_fill</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styleguide.css') }}">
-    <meta charset="utf-8">
-  </head>
+{% extends "layout.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
   <body style="background-color:WhiteSmoke">
     <br></br>
     <br></br>
@@ -12,5 +8,4 @@
       <h1> Okay, the computer will fill in the blanks </h1>
 
     </div>
-  </body>
-</html>
+{% endblock %}

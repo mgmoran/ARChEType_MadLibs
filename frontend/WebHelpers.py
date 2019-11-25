@@ -1,6 +1,7 @@
 import os
 from typing import List
 import json
+import re
 
 
 class MadLib:
@@ -28,3 +29,12 @@ class Database:
 
     def add_madlib(self, ml: MadLib):
         self.all_madlibs[ml.title] = ml
+
+def fill_madlib(plot:str, blanks:List[str]):
+    to_fill = re.sub('__*', '%s', plot)
+    filled_in = to_fill % tuple(blanks)
+    return filled_in
+
+
+
+
