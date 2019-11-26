@@ -559,12 +559,17 @@ def templatize(predicted_dev):
 
 def export_templates(dev_predicted):
     templates = templatize(dev_predicted)
-    with open("Madlibs_Templates.txt",'w') as f:
+    with open("Madlibs_Templates.jsonl",'w') as f:
         for template in templates:
-            f.write(template[0] + "\n")
-            f.write(", ".join(template[1]))
-            f.write("\n\n")
+            f.write(json.dumps({"text": template[0], "labels": template[1]}) + "\n")
 
+def export_entities(dev_predicted):
+    entity_types = defaultdict(list)
+    for doc in dev_predicted:
+        for ent in doc.ents:
+            entity_types[ent.label_].append(ent.text)
+    with open("Madlibs_Entiteis.jsonl",'w') as f:
+        f.write(json.dumps(entity_types))
 
 def main():
     global nlp, crf, train, gold_dev
@@ -602,6 +607,7 @@ def main():
         print("\t".join(fields), file=sys.stderr)
 
     export_templates(dev_predicted)
+    export_entities(dev_predicted)
 
 
 if __name__ == "__main__":
