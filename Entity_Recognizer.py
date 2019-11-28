@@ -588,7 +588,7 @@ def main():
                 WordShapeFeature(),
                 BiasFeature(),
             ],
-            1,
+            10,
         ),
         BILOUEncoder(),
     )
