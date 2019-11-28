@@ -546,8 +546,14 @@ def templatize(predicted_dev):
         template = list(text) ### all characters
         labels = []
         ents = doc.ents
+        entity_map = defaultdict(lambda: defaultdict())
         for ent in ents:
-            labels.append(ent.label_)
+            if ent.label_ not in entity_map.keys():
+                entity_map[ent.label_][ent.text] = 0
+            else:
+                if ent.text not in entity_map[ent.label_].keys():
+                    entity_map[ent.label_][ent.text] = max(entity_map[ent.label_].values()) + 1
+            labels.append(ent.label_ + '_' + str(entity_map[ent.label_][ent.text]))
             start_token = tokenized[ent.start]
             end_token = tokenized[ent.end -1]
             start_token_character_offset = start_token.idx
@@ -559,7 +565,7 @@ def templatize(predicted_dev):
 
 def export_templates(dev_predicted):
     templates = templatize(dev_predicted)
-    with open("Madlibs_Templates.jsonl",'w') as f:
+    with open("Madlibs_Templates_linked.jsonl",'w') as f:
         for template in templates:
             f.write(json.dumps({"text": template[0], "labels": template[1]}) + "\n")
 
@@ -581,7 +587,7 @@ def main():
     crf = CRFsuiteEntityRecognizer(
         WindowedTokenFeatureExtractor(
             [
-                WordVectorFeature("wiki-news-300d-1M-subword.magnitude", 1.0),
+                # WordVectorFeature("wiki-news-300d-1M-subword.magnitude", 1.0), # disabled for testing
                 TokenFeature(),
                 SuffixFeature(),
                 SentimentFeature(),
@@ -596,7 +602,7 @@ def main():
     train, gold_dev = compile_tagged_train_data(annotated_data)
     crf.train(train, "ap", {"max_iterations": 40}, "tmp.model")
     dev_predicted = predict_dev_labels(gold_dev)
-    scores = span_prf1_type_map(gold_dev, dev_predicted,type_map={"ANTAG":"FLAT"})
+    scores = span_prf1_type_map(gold_dev, dev_predicted, type_map={"ANTAG":"FLAT"})
     rounder = Context(rounding=ROUND_HALF_UP, prec=4)
     for ent_type, score in sorted(scores.items()):
         if ent_type == "":
