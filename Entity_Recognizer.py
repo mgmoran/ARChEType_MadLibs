@@ -595,6 +595,7 @@ def main():
                 # BiasFeature(),
                 POSFeature(),
                 CountFeature(),
+                PositionFeature()
             ],
             1,
         ),
