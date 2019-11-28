@@ -125,6 +125,7 @@ class WordVectorFeature(FeatureExtractor):
         relative_idx: int,
         tokens: Sequence[str],
         features: Dict[str, float],
+        idx: int,
     ) -> None:
         if relative_idx == 0:
             v = self.scaling * self.vectors.query(token)
@@ -159,6 +160,7 @@ class BrownClusterFeature(FeatureExtractor):
         relative_idx: int,
         tokens: Sequence[str],
         features: Dict[str, float],
+        idx: int
     ) -> None:
         if relative_idx==0:
             path = self.clusters[token]
@@ -182,7 +184,7 @@ class WindowedTokenFeatureExtractor:
         self.window_size = window_size
         self.feature_extractors = feature_extractors
 
-    def extract(self, tokens: Sequence[str]) -> List[Dict[str, float]]:
+    def extract(self, tokens: Sequence[str], idx: int) -> List[Dict[str, float]]:
         token_feature_dicts = []
         for i in range(len(tokens)):
             feature_dict = {}
@@ -191,10 +193,10 @@ class WindowedTokenFeatureExtractor:
                 for extractor in self.feature_extractors:
                     if len(tokens) - current_index > j:
                         focus_token = tokens[current_index +j]
-                        extractor.extract(focus_token,current_index,j,tokens, feature_dict)
+                        extractor.extract(focus_token,current_index,j,tokens, feature_dict,idx)
                     if current_index - j >= 0:
                         focus_token = tokens[current_index - j]
-                        extractor.extract(focus_token,current_index,-j, tokens, feature_dict)
+                        extractor.extract(focus_token,current_index,-j, tokens, feature_dict,idx)
             token_feature_dicts.append(feature_dict)
         return token_feature_dicts
 
@@ -206,10 +208,10 @@ class BiasFeature(FeatureExtractor):
             relative_idx: int,
             tokens: Sequence[str],
             features: Dict[str, float],
+            idx: int,
     ) -> None:
         if relative_idx == 0:
             features['bias'] = 1.0
-
 
 class TokenFeature(FeatureExtractor):
     def extract(
@@ -219,20 +221,26 @@ class TokenFeature(FeatureExtractor):
         relative_idx: int,
         tokens: Sequence[str],
         features: Dict[str, float],
+        idx: int,
     ) -> None:
         features['tok[' + repr(relative_idx) + ']=' + token] = 1.0
 
-class UppercaseFeature(FeatureExtractor):
+class CountFeature(FeatureExtractor):
     def extract(
-            self,
-            token: str,
-            current_idx: int,
-            relative_idx: int,
-            tokens: Sequence[str],
-            features: Dict[str, float],
+        self,
+        token: str,
+        current_idx: int,
+        relative_idx: int,
+        tokens: Sequence[str],
+        features: Dict[str, float],
+        idx: int,
     ) -> None:
-        if token.isupper():
-            features['uppercase[' + repr(relative_idx) + ']'] = 1.0
+        if relative_idx==0:
+            if token.istitle():
+                count = tokens.count(token)
+                if count > 2:
+                    features['count[' + repr(relative_idx) + '>2'] = 1.0
+
 
 class SuffixFeature(FeatureExtractor):
     def extract(
@@ -242,9 +250,12 @@ class SuffixFeature(FeatureExtractor):
             relative_idx: int,
             tokens: Sequence[str],
             features: Dict[str, float],
+            idx: int,
     ) -> None:
-        if token.endswith(('er','ar','ist','ian','ier','ur','eur','eer','ster',)):
-            features['suffixfeature[' +repr(relative_idx) + ']'] = 1.0
+        if relative_idx==0:
+            suffixes = ('er','ar','ist','ian','ier','ur','eur','eer','ster', 'or','ess',)
+            if token.endswith(suffixes) or token[:-1].endswith(suffixes):
+                features['suffixfeature[' +repr(relative_idx) + ']'] = 1.0
 
 
 class POSFeature(FeatureExtractor):
@@ -255,9 +266,11 @@ class POSFeature(FeatureExtractor):
             relative_idx: int,
             tokens: Sequence[str],
             features: Dict[str, float],
+            idx: int,
     ) -> None:
-        POS = nltk.pos_tag([token])
-        features['pos[' + repr(relative_idx) +repr(POS[0][1])] = 1.0
+        if relative_idx == -1 or relative_idx==0:
+            POS = nltk.pos_tag([token])
+            features['pos[' + repr(relative_idx) +repr(POS[0][1])] = 1.0
 
 class SentimentFeature(FeatureExtractor):
     def __init__(self):
@@ -269,63 +282,51 @@ class SentimentFeature(FeatureExtractor):
             relative_idx: int,
             tokens: Sequence[str],
             features: Dict[str, float],
+            idx: int,
     ) -> None:
         scores = self.sid.polarity_scores(token)
         sentiment = max(scores.items(), key=operator.itemgetter(1))[0]
         if sentiment != 'compound' and sentiment !='neu':
-            features['sentiment[' + repr(relative_idx) + 'neg'] = 1.0
+            features['sentiment[' + repr(relative_idx) + sentiment] = 1.0
 
-class TitlecaseFeature(FeatureExtractor):
+class PositionFeature(FeatureExtractor):
     def extract(
-            self,
-            token: str,
-            current_idx: int,
-            relative_idx: int,
-            tokens: Sequence[str],
-            features: Dict[str, float],
+        self,
+        token: str,
+        current_idx: int,
+        relative_idx: int,
+        tokens: Sequence[str],
+        features: Dict[str, float],
+        idx: int,
     ) -> None:
-        if token.istitle():
-            features['titlecase[' + repr(relative_idx) + ']'] = 1.0
+        if relative_idx==0:
+            features['sent_position=' + repr(idx)] = 1.0
+
+# class TitlecaseFeature(FeatureExtractor):
+#     def extract(
+#             self,
+#             token: str,
+#             current_idx: int,
+#             relative_idx: int,
+#             tokens: Sequence[str],
+#             features: Dict[str, float],
+#     ) -> None:
+#         if relative_idx==0:
+#             if token.istitle():
+#                 features['titlecase[' + repr(relative_idx) + ']'] = 1.0
 
 
-class InitialTitlecaseFeature(FeatureExtractor):
-    def extract(
-            self,
-            token: str,
-            current_idx: int,
-            relative_idx: int,
-            tokens: Sequence[str],
-            features: Dict[str, float],
-    ) -> None:
-        if token.istitle() and ((current_idx + relative_idx)==0):
-            features['initialtitlecase[' + repr(relative_idx) + ']'] = 1.0
-
-
-class PunctuationFeature(FeatureExtractor):
-    def extract(
-            self,
-            token: str,
-            current_idx: int,
-            relative_idx: int,
-            tokens: Sequence[str],
-            features: Dict[str, float],
-    ) -> None:
-        PUNC_REPEAT_RE = regex.compile(r"\p{P}+")
-        if regex.match(PUNC_REPEAT_RE,token):
-            features['punc[' + repr(relative_idx) + ']'] = 1.0
-
-class DigitFeature(FeatureExtractor):
-    def extract(
-            self,
-            token: str,
-            current_idx: int,
-            relative_idx: int,
-            tokens: Sequence[str],
-            features: Dict[str, float],
-    ) -> None:
-        DIGIT_RE = regex.compile(r"\d")
-        if regex.search(DIGIT_RE,token):
-            features['digit[' + repr(relative_idx) + ']'] = 1.0
+# class InitialTitlecaseFeature(FeatureExtractor):
+#     def extract(
+#             self,
+#             token: str,
+#             current_idx: int,
+#             relative_idx: int,
+#             tokens: Sequence[str],
+#             features: Dict[str, float],
+#     ) -> None:
+#         if token.istitle() and ((current_idx + relative_idx)==0):
+#             features['initialtitlecase[' + repr(relative_idx) + ']'] = 1.0
 
 class WordShapeFeature(FeatureExtractor):
     def extract(
@@ -335,6 +336,7 @@ class WordShapeFeature(FeatureExtractor):
             relative_idx: int,
             tokens: Sequence[str],
             features: Dict[str, float],
+            idx: int,
     ) -> None:
         UPPERCASE_RE = regex.compile(r"[\p{Lu}\p{Lt}]")
         LOWERCASE_RE = regex.compile(r"\p{Ll}")
@@ -446,11 +448,13 @@ class CRFsuiteEntityRecognizer:
         trainer.set_params(params)
         encoder = self.encoder()
         for doc in docs:
+            idx = 0
             for sent in doc.sents:
                 tokens = list(sent)
-                features = self.feature_extractor.extract([str(token) for token in tokens])
+                features = self.feature_extractor.extract([str(token) for token in tokens],idx)
                 encoding = encoder.encode(tokens)
                 trainer.append(features, encoding)
+                idx +=1
         trainer.train(path)
         self.tagger = pycrfsuite.Tagger()
         self.tagger.open(path)
@@ -460,11 +464,14 @@ class CRFsuiteEntityRecognizer:
         if self.tagger is None:
             raise ValueError
         else:
-            tokens = [token for token in doc]
-            features = self.feature_extractor.extract([str(token) for token in tokens])
-            predicted_labels = self.tagger.tag(features)
-            ents = self.decode(predicted_labels, tokens, doc)
-            entities.extend(ents)
+            idx = 0
+            for sent in doc.sents:
+                tokens = [token for token in sent]
+                features = self.feature_extractor.extract([str(token) for token in tokens],idx)
+                predicted_labels = self.tagger.tag(features)
+                ents = self.decode(predicted_labels, tokens, doc)
+                entities.extend(ents)
+                idx +=1
         doc.ents = entities
         return doc
 
@@ -482,7 +489,7 @@ def extract_entity(token: tuple) -> str:
 #---------------- Accuracy & Performance Analysis  ----------------#
 
 def span_scoring_counts(
-    reference_docs: Sequence[Doc], test_docs: Sequence[Doc], typed: bool = True
+    reference_docs: Sequence[Doc], test_docs: Sequence[Doc], type_map: dict = None
 ) -> ScoringCounts:
     truepos = []
     falsepos = []
@@ -490,17 +497,16 @@ def span_scoring_counts(
     values = defaultdict(lambda: defaultdict(int))
     zipped = zip(reference_docs, test_docs)
     for doc in zipped:
-        if typed == True:
+        if type_map is None:
             ref_ents = [(ent.label_, ent.start, ent.end) for ent in doc[0].ents]
             test_ents = [(ent.label_, ent.start, ent.end) for ent in doc[1].ents]
         else:
-            ref_ents = [('', ent.start, ent.end) for ent in doc[0].ents]
-            test_ents = [('', ent.start, ent.end) for ent in doc[1].ents]
+            ref_ents = [(type_map[ent.label_], ent.start, ent.end) if ent.label_ in type_map else (ent.label_, ent.start, ent.end) for ent in doc[0].ents]
+            test_ents = [(type_map[ent.label_], ent.start, ent.end) if ent.label_ in type_map else (ent.label_, ent.start, ent.end) for ent in doc[1].ents]
         for ent in doc[1].ents:
-            if typed==True:
-                label = ent.label_
-            else:
-                label = ''
+            label = ent.label_
+            if type_map is not None and ent.label_ in type_map:
+                label = type_map[ent.label_]
             rep = (label, ent.start, ent.end)
             if rep in ref_ents:
                 values[label]['truepos'] += 1
@@ -509,10 +515,10 @@ def span_scoring_counts(
                 values[ent.label_]['falsepos'] += 1
                 falsepos.append(ScoringEntity(tuple(ent.text.split()),ent.label_))
         for ent in doc[0].ents:
-            if typed==True:
+            if type_map is None:
                 label = ent.label_
-            else:
-                label = ''
+                if type_map and ent.label_ in type_map:
+                    label = type_map[ent.label_]
             rep = (label, ent.start, ent.end)
             if rep not in test_ents:
                 values[label]['falseneg'] += 1
@@ -536,7 +542,7 @@ def compile_tagged_train_data(annotations):
                 review = json.loads(line)
                 doc = ingest_json_document(review, nlp)
                 train.append(doc)
-    return train[:500], train[500:]
+    return train[:560], train[560:]
 
 def templatize(predicted_dev):
     templates = []
@@ -546,14 +552,8 @@ def templatize(predicted_dev):
         template = list(text) ### all characters
         labels = []
         ents = doc.ents
-        entity_map = defaultdict(lambda: defaultdict())
         for ent in ents:
-            if ent.label_ not in entity_map.keys():
-                entity_map[ent.label_][ent.text] = 0
-            else:
-                if ent.text not in entity_map[ent.label_].keys():
-                    entity_map[ent.label_][ent.text] = max(entity_map[ent.label_].values()) + 1
-            labels.append(ent.label_ + '_' + str(entity_map[ent.label_][ent.text]))
+            labels.append(ent.label_)
             start_token = tokenized[ent.start]
             end_token = tokenized[ent.end -1]
             start_token_character_offset = start_token.idx
@@ -565,7 +565,7 @@ def templatize(predicted_dev):
 
 def export_templates(dev_predicted):
     templates = templatize(dev_predicted)
-    with open("Madlibs_Templates_linked.jsonl",'w') as f:
+    with open("Madlibs_Templates.jsonl",'w') as f:
         for template in templates:
             f.write(json.dumps({"text": template[0], "labels": template[1]}) + "\n")
 
@@ -574,7 +574,7 @@ def export_entities(dev_predicted):
     for doc in dev_predicted:
         for ent in doc.ents:
             entity_types[ent.label_].append(ent.text)
-    with open("Madlibs_Entiteis.jsonl",'w') as f:
+    with open("Madlibs_Entities.jsonl",'w') as f:
         f.write(json.dumps(entity_types))
 
 def main():
@@ -583,26 +583,28 @@ def main():
     annotated_data = ['Annotation_task/Annotated_data/Jenny_annotations.jsonl',
                       'Annotation_task/Annotated_data/micaela_annotation.jsonl',
                       'Annotation_task/Annotated_data/molly_annotations.jsonl',
-                      'Annotation_task/Annotated_data/qingwen_annotations.jsonl',]
+                      'Annotation_task/Annotated_data/qingwen_annotations.jsonl']
     crf = CRFsuiteEntityRecognizer(
         WindowedTokenFeatureExtractor(
             [
-                # WordVectorFeature("wiki-news-300d-1M-subword.magnitude", 1.0), # disabled for testing
+                WordVectorFeature("wiki-news-300d-1M-subword.magnitude", 1.0),
                 TokenFeature(),
                 SuffixFeature(),
                 SentimentFeature(),
                 WordShapeFeature(),
-                BiasFeature(),
+                # BiasFeature(),
+                POSFeature(),
+                CountFeature(),
             ],
-            10,
+            1,
         ),
         BILOUEncoder(),
     )
     crf.tagger = pycrfsuite.Tagger()
     train, gold_dev = compile_tagged_train_data(annotated_data)
-    crf.train(train, "ap", {"max_iterations": 40}, "tmp.model")
+    crf.train(train, "ap", {"max_iterations": 100}, "tmp.model")
     dev_predicted = predict_dev_labels(gold_dev)
-    scores = span_prf1_type_map(gold_dev, dev_predicted, type_map={"ANTAG":"FLAT"})
+    scores = span_prf1_type_map(gold_dev, dev_predicted,type_map={"ANTAG":"FLAT_ANTAG", "FLAT": "FLAT_ANTAG"})
     rounder = Context(rounding=ROUND_HALF_UP, prec=4)
     for ent_type, score in sorted(scores.items()):
         if ent_type == "":
@@ -611,10 +613,26 @@ def main():
             str(rounder.create_decimal_from_float(num * 100)) for num in score
         ]
         print("\t".join(fields), file=sys.stderr)
+    # Readable output for Span Scores ###
+    span_scores = span_scoring_counts(gold_dev, dev_predicted,type_map ={"ANTAG":"FLAT_ANTAG", "FLAT": "FLAT_ANTAG"})
+    print("False positives:")
+    falsepos = span_scores[1]
+    print(Counter([entity[1] for entity in falsepos]))
+    print("")
+    print("15 most common false positive entities:")
+    print(falsepos.most_common(15))
+    print("")
+    falseneg = span_scores[2]
+    print("15 most common false negative entities:")
+    print(falsepos.most_common(15))
+    occups = Counter([ent for ent in falseneg if ent[1]=='OCCUP'])
+    locs = Counter([ent for ent in falseneg if ent[1] == 'LOC'])
+    print("most common false negative occupations:")
+    print(occups.most_common(15))
+    print("most common false negative locs=")
+    print(locs.most_common(15))
 
     export_templates(dev_predicted)
     export_entities(dev_predicted)
-
-
 if __name__ == "__main__":
     main()
