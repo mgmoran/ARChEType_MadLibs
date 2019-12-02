@@ -619,7 +619,12 @@ def main():
     annotated_data = ['Annotation_task/Annotated_data/Jenny_annotations.jsonl',
                       'Annotation_task/Annotated_data/micaela_annotation.jsonl',
                       'Annotation_task/Annotated_data/molly_annotations.jsonl',
-                      'Annotation_task/Annotated_data/qingwen_annotations.jsonl']
+                      'Annotation_task/Annotated_data/qingwen_annotations.jsonl',
+                      # 'Annotation_task/act_rom_annotations/jenny_act_rom.jsonl',
+                      # 'Annotation_task/act_rom_annotations/micaela_act_rom.jsonl',
+                      # 'Annotation_task/act_rom_annotations/molly_act_rom.jsonl',
+                      # 'Annotation_task/act_rom_annotations/qingwen_act_rom.jsonl'
+                      ]
     crf = CRFsuiteEntityRecognizer(
         WindowedTokenFeatureExtractor(
             [
@@ -631,7 +636,8 @@ def main():
                 # BiasFeature(),
                 POSFeature(),
                 CountFeature(),
-                PositionFeature()
+                PositionFeature(),
+                # BrownClusterFeature("rcv1.64M-c10240-p1.paths", use_full_paths=True)
             ],
             1,
         ),
@@ -650,26 +656,32 @@ def main():
             str(rounder.create_decimal_from_float(num * 100)) for num in score
         ]
         print("\t".join(fields), file=sys.stderr)
+
     # Readable output for Span Scores ###
     span_scores = span_scoring_counts(gold_dev, dev_predicted,type_map ={"ANTAG":"FLAT_ANTAG", "FLAT": "FLAT_ANTAG"})
     print("False positives:")
     falsepos = span_scores[1]
-    print(Counter([entity[1] for entity in falsepos]))
-    print("")
-    print("15 most common false positive entities:")
-    print(falsepos.most_common(15))
-    print("")
     falseneg = span_scores[2]
-    print("15 most common false negative entities:")
-    print(falsepos.most_common(15))
     occups = Counter([ent for ent in falseneg if ent[1]=='OCCUP'])
     locs = Counter([ent for ent in falseneg if ent[1] == 'LOC'])
-    print("most common false negative occupations:")
+    print(Counter([entity[1] for entity in falsepos]))
+    print()
+    print("15 most common false positive entities:")
+    print(falsepos.most_common(15))
+    print()
+    print("15 most common false negative entities:")
+    print(falsepos.most_common(15))
+    print()
+    print("15 most common false negative occupations:")
     print(occups.most_common(15))
-    print("most common false negative locs=")
+    print()
+    print("15 most common false negative locations:")
     print(locs.most_common(15))
 
     export_templates(dev_predicted)
     export_entities(dev_predicted)
+
+
 if __name__ == "__main__":
+
     main()
