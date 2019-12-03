@@ -547,30 +547,19 @@ def compile_tagged_train_data(annotations):
 
 def templatize(predicted_dev):
     templates = []
-    all_text = []
-
     for doc in predicted_dev:
         text = doc.text
-        all_text.append(text)
         tokenized = nlp(text)
         template = list(text) ### all characters
         labels = []
         ents = doc.ents
         entity_map = defaultdict(lambda: defaultdict())
-
         for ent in ents:
             if ent.label_ not in entity_map.keys():
                 entity_map[ent.label_][ent.text] = 0
             else:
-                keys = [k for k in entity_map[ent.label_].keys()][:]  # create a new copy
-                matched = False
-                for key in keys:
-                    if match_ent(ent.text, key):
-                        entity_map[ent.label_][ent.text] = entity_map[ent.label_][key]
-                        matched = True
-                if not matched:
+                if ent.text not in entity_map[ent.label_].keys():
                     entity_map[ent.label_][ent.text] = max(entity_map[ent.label_].values()) + 1
-
             labels.append(ent.label_ + '_' + str(entity_map[ent.label_][ent.text]))
             start_token = tokenized[ent.start]
             end_token = tokenized[ent.end -1]
@@ -578,27 +567,8 @@ def templatize(predicted_dev):
             end_token_character_end = end_token.idx + len(end_token)
             for i in range(start_token_character_offset, end_token_character_end):
                 template[i] = '_'
-
         templates.append((''.join(template),labels))
-
-
-        with open("All_template_text.txt",'w') as f:
-            for t in all_text:
-                f.write(t)
-                f.write('\n')
-
     return templates
-
-def match_ent(input, target):
-    """
-    Compare input and target labels to check if they refer to the same entities.
-    Return True if texts of two labels strict match or input is part of target
-    """
-    for e in input.split():
-        if e.lower() in [t.lower() for t in target.split()]:
-            return True
-    return False
-
 
 def export_templates(dev_predicted):
     templates = templatize(dev_predicted)
@@ -620,12 +590,7 @@ def main():
     annotated_data = ['Annotation_task/Annotated_data/Jenny_annotations.jsonl',
                       'Annotation_task/Annotated_data/micaela_annotation.jsonl',
                       'Annotation_task/Annotated_data/molly_annotations.jsonl',
-                      'Annotation_task/Annotated_data/qingwen_annotations.jsonl',
-                      # 'Annotation_task/act_rom_annotations/jenny_act_rom.jsonl',
-                      # 'Annotation_task/act_rom_annotations/micaela_act_rom.jsonl',
-                      # 'Annotation_task/act_rom_annotations/molly_act_rom.jsonl',
-                      # 'Annotation_task/act_rom_annotations/qingwen_act_rom.jsonl'
-                      ]
+                      'Annotation_task/Annotated_data/qingwen_annotations.jsonl']
     crf = CRFsuiteEntityRecognizer(
         WindowedTokenFeatureExtractor(
             [
@@ -637,12 +602,11 @@ def main():
                 # BiasFeature(),
                 POSFeature(),
                 CountFeature(),
-                PositionFeature(),
-                # BrownClusterFeature("rcv1.64M-c10240-p1.paths", use_full_paths=True)
+                PositionFeature()
             ],
             1,
         ),
-        BIOEncoder(),
+        BILOUEncoder(),
     )
     crf.tagger = pycrfsuite.Tagger()
     train, gold_dev = compile_tagged_train_data(annotated_data)
@@ -657,32 +621,26 @@ def main():
             str(rounder.create_decimal_from_float(num * 100)) for num in score
         ]
         print("\t".join(fields), file=sys.stderr)
-
     # Readable output for Span Scores ###
     span_scores = span_scoring_counts(gold_dev, dev_predicted,type_map ={"ANTAG":"FLAT_ANTAG", "FLAT": "FLAT_ANTAG"})
     print("False positives:")
     falsepos = span_scores[1]
-    falseneg = span_scores[2]
-    occups = Counter([ent for ent in falseneg if ent[1]=='OCCUP'])
-    locs = Counter([ent for ent in falseneg if ent[1] == 'LOC'])
     print(Counter([entity[1] for entity in falsepos]))
-    print()
+    print("")
     print("15 most common false positive entities:")
     print(falsepos.most_common(15))
-    print()
+    print("")
+    falseneg = span_scores[2]
     print("15 most common false negative entities:")
     print(falsepos.most_common(15))
-    print()
-    print("15 most common false negative occupations:")
+    occups = Counter([ent for ent in falseneg if ent[1]=='OCCUP'])
+    locs = Counter([ent for ent in falseneg if ent[1] == 'LOC'])
+    print("most common false negative occupations:")
     print(occups.most_common(15))
-    print()
-    print("15 most common false negative locations:")
+    print("most common false negative locs=")
     print(locs.most_common(15))
 
     export_templates(dev_predicted)
     export_entities(dev_predicted)
-
-
 if __name__ == "__main__":
-
     main()
