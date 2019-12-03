@@ -44,13 +44,10 @@ class Database:
     def add_madlib(self, ml: MadLib):
         self.all_madlibs[ml.title] = ml
 
-def fill_madlib(plot:str, blanks:List[str]):
+
+def fill_madlib(plot: str, blanks: List[str]):
     b = [f"<b>{bl}</b>" for bl in blanks]
     to_fill = re.sub('__*', '%s', plot)
     filled_in = to_fill % tuple(b)
     formatted = filled_in
     return formatted
-
-
-
-

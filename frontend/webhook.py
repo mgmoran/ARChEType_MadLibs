@@ -27,7 +27,11 @@ def select_user_madlib():
     if request.method == "POST":
         title = request.form["madlib"]
         labels = app.config["db"].all_madlibs[title].blanks
-        lookup = [LABEL_TAGS[l] for l in labels]
+        labels = sorted(list(set(labels)))
+        lookup = []
+        for l in labels:
+            name, num = l.split('_')
+            lookup.append(f"{LABEL_TAGS[name]} {num}")
         blanks = zip(lookup, range(len(lookup)))
         return render_template('user_fill.html', title=title, blanks=blanks)
 
@@ -43,28 +47,35 @@ def user_fill():
         reversed_response = {y: x for x, y in response.items()}
         title = reversed_response["Submit"]
         plot = app.config["db"].all_madlibs[title].plot
-        filled = fill_madlib(plot, blanks)
+        labels = app.config["db"].all_madlibs[title].blanks
+        label_set = sorted(list(set(labels)))
+        fill_dict = {x: y for x, y in zip(label_set, blanks)}
+        all_blanks = [fill_dict[l] for l in labels]
+        filled = fill_madlib(plot, all_blanks)
         return render_template('filled_madlib.html', title=title, filled=filled)
 
 
 @app.route('/select_computer_madlib.html', methods=["GET", "POST"])
 def select_computer_madlib():
     if request.method == "GET":
-        return render_template('select_computer_madlib.html', madlib_titles=app.config["db"].all_madlibs.keys())
+        return render_template('select_computer_madlib.html', madlib_titles=sorted(app.config["db"].all_madlibs.keys()))
     if request.method == "POST":
         title = request.form["madlib"]
         labels = app.config["db"].all_madlibs[title].blanks
-        return fill_computer_madlib(title)
+        label_set = sorted(list(set(labels)))
+        return fill_computer_madlib(title, label_set)
 
 
-def fill_computer_madlib(title):
+def fill_computer_madlib(title, label_set):
     plot = app.config["db"].all_madlibs[title].plot
     blanks = app.config["db"].all_madlibs[title].blanks
     filler = []
-    for b in blanks:
-        ent = random.choice(app.config["db"].entities[b])
+    for l in label_set:
+        ent = random.choice(app.config["db"].entities[l.split("_")[0]])
         filler.append(ent)
-    filled = fill_madlib(plot, filler)
+    fill_dict = {x: y for x, y in zip(label_set, filler)}
+    all_blanks = [fill_dict[b] for b in blanks]
+    filled = fill_madlib(plot, all_blanks)
     return render_template('filled_madlib.html', title=title, filled=filled)
 
 
@@ -82,6 +93,6 @@ if __name__ == '__main__':
     #        " in cabs and finally high above the street on the girders of a construction site."
     # blanks = ["PROTA", "PROTA"]
     # db.add_madlib(MadLib(title, genres, plot, blanks))
-    db = Database(os.path.join('Madlibs_Templates.jsonl'), os.path.join('Madlibs_Entities.jsonl'))
+    db = Database(os.path.join('Madlibs_Templates_linked.jsonl'), os.path.join('Madlibs_Entities.jsonl'))
     app.config["db"] = db
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
