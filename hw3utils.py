@@ -21,6 +21,7 @@ class FeatureExtractor(ABC):
         relative_idx: int,
         tokens: Sequence[str],
         features: Dict[str, float],
+        idx: int
     ) -> None:
         raise NotImplementedError
 

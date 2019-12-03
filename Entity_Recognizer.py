@@ -14,6 +14,7 @@ from spacy.tokens import Doc, Token, Span
 from typing import Iterable, Mapping, Sequence, Dict, Optional
 from spacy.language import Language
 import copy
+import random
 
 def ingest_json_document(doc_json: Mapping, nlp: Language) -> Doc:
     """ Creates a Spacy doc from json annotations; maps character indices to Spacy token indices."""
@@ -46,7 +47,7 @@ def ingest_json_document(doc_json: Mapping, nlp: Language) -> Doc:
     try:
         doc.ents = entities
     except ValueError:
-        doc_ents = []
+        doc.ents = []
     return doc
 
 def span_prf1_type_map(
@@ -515,10 +516,9 @@ def span_scoring_counts(
                 values[ent.label_]['falsepos'] += 1
                 falsepos.append(ScoringEntity(tuple(ent.text.split()),ent.label_))
         for ent in doc[0].ents:
-            if type_map is None:
-                label = ent.label_
-                if type_map and ent.label_ in type_map:
-                    label = type_map[ent.label_]
+            label = ent.label_
+            if type_map and ent.label_ in type_map:
+                label = type_map[ent.label_]
             rep = (label, ent.start, ent.end)
             if rep not in test_ents:
                 values[label]['falseneg'] += 1
@@ -542,7 +542,8 @@ def compile_tagged_train_data(annotations):
                 review = json.loads(line)
                 doc = ingest_json_document(review, nlp)
                 train.append(doc)
-    return train[:560], train[560:]
+    random.shuffle(train)
+    return train[:500], train[500:]
 
 def templatize(predicted_dev):
     templates = []
@@ -552,8 +553,14 @@ def templatize(predicted_dev):
         template = list(text) ### all characters
         labels = []
         ents = doc.ents
+        entity_map = defaultdict(lambda: defaultdict())
         for ent in ents:
-            labels.append(ent.label_)
+            if ent.label_ not in entity_map.keys():
+                entity_map[ent.label_][ent.text] = 0
+            else:
+                if ent.text not in entity_map[ent.label_].keys():
+                    entity_map[ent.label_][ent.text] = max(entity_map[ent.label_].values()) + 1
+            labels.append(ent.label_ + '_' + str(entity_map[ent.label_][ent.text]))
             start_token = tokenized[ent.start]
             end_token = tokenized[ent.end -1]
             start_token_character_offset = start_token.idx
@@ -565,7 +572,7 @@ def templatize(predicted_dev):
 
 def export_templates(dev_predicted):
     templates = templatize(dev_predicted)
-    with open("Madlibs_Templates.jsonl",'w') as f:
+    with open("Madlibs_Templates_linked.jsonl",'w') as f:
         for template in templates:
             f.write(json.dumps({"text": template[0], "labels": template[1]}) + "\n")
 
@@ -595,10 +602,11 @@ def main():
                 # BiasFeature(),
                 POSFeature(),
                 CountFeature(),
+                PositionFeature()
             ],
             1,
         ),
-        BILOUEncoder(),
+        BIOEncoder(),
     )
     crf.tagger = pycrfsuite.Tagger()
     train, gold_dev = compile_tagged_train_data(annotated_data)
