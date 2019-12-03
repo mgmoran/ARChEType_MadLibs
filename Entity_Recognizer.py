@@ -547,19 +547,30 @@ def compile_tagged_train_data(annotations):
 
 def templatize(predicted_dev):
     templates = []
+    all_text = []
+
     for doc in predicted_dev:
         text = doc.text
+        all_text.append(text)
         tokenized = nlp(text)
         template = list(text) ### all characters
         labels = []
         ents = doc.ents
         entity_map = defaultdict(lambda: defaultdict())
+
         for ent in ents:
             if ent.label_ not in entity_map.keys():
                 entity_map[ent.label_][ent.text] = 0
             else:
-                if ent.text not in entity_map[ent.label_].keys():
+                keys = [k for k in entity_map[ent.label_].keys()][:]  # create a new copy
+                matched = False
+                for key in keys:
+                    if match_ent(ent.text, key):
+                        entity_map[ent.label_][ent.text] = entity_map[ent.label_][key]
+                        matched = True
+                if not matched:
                     entity_map[ent.label_][ent.text] = max(entity_map[ent.label_].values()) + 1
+
             labels.append(ent.label_ + '_' + str(entity_map[ent.label_][ent.text]))
             start_token = tokenized[ent.start]
             end_token = tokenized[ent.end -1]
@@ -567,8 +578,28 @@ def templatize(predicted_dev):
             end_token_character_end = end_token.idx + len(end_token)
             for i in range(start_token_character_offset, end_token_character_end):
                 template[i] = '_'
+
         templates.append((''.join(template),labels))
+
+
+        with open("All_template_text.txt",'w') as f:
+            for t in all_text:
+                f.write(t)
+                f.write('\n')
+
     return templates
+
+
+def match_ent(input, target):
+    """
+    Compare input and target labels to check if they refer to the same entities.
+    Return True if texts of two labels strict match or input is part of target
+    """
+    for e in input.split():
+        if e.lower() in [t.lower() for t in target.split()]:
+            return True
+    return False
+
 
 def export_templates(dev_predicted):
     templates = templatize(dev_predicted)
