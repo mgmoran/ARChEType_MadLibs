@@ -1,0 +1,17 @@
+{% extends "layout.html" %}
+{% block title %}Select MadLib{% endblock %}
+{% block content %}
+<br><br>
+<div class="header_text">
+    <h1>Select a MadLib from the titles below</h1>
+</div>
+<div class="center" align="center">
+    <form method="post">
+        {% for title in madlib_titles %}
+        <input type="radio" name="madlib" value="{{ title }}"> {{ title }} <br>
+        {% endfor %}
+        <br><br>
+        <input type="submit" name="madlib_answers" value="Submit">
+    </form>
+</div>
+{% endblock %}

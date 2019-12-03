@@ -1,10 +1,14 @@
 {% extends "layout.html" %}
-{% block title %}Home{% endblock %}
+{% block title %}filled madlib{% endblock %}
 {% block content %}
 <br><br>
 <div class="header_text">
     <h1>NER Madlibs!</h1>
     <h2> {{ title }}</h2>
+</div>
+<div class="center">
+    {% autoescape false %}
     <p> {{ filled }}</p>
+    {% endautoescape %}
 </div>
 {% endblock %}

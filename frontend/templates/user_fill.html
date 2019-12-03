@@ -1,11 +1,13 @@
 {% extends "layout.html" %}
-{% block title %}Home{% endblock %}
+{% block title %}user fill{% endblock %}
 {% block content %}
 <br><br>
 <div class="header_text">
     <h1> Okay, we'll have you fill in the blanks! </h1>
     <h2> Fill in the blanks below. Press submit when finished.</h2>
     <h3> MadLib selected: {{ title }}</h3>
+</div>
+<div class="center" align="center">
     <form action="user_fill.html" method="post">
         {% for blank, name in blanks %}
         {{ blank }}:
