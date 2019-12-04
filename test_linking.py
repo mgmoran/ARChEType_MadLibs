@@ -4,9 +4,9 @@ original = []
 linked = []
 text = []
 
-with open("Madlibs_Templates.jsonl", 'r') as infile:
-    for line in infile:
-        original.append(json.loads(line))
+# with open("Madlibs_Templates.jsonl", 'r') as infile:
+#     for line in infile:
+#         original.append(json.loads(line))
 
 with open("Madlibs_Templates_linked.jsonl", 'r') as infile:
     for line in infile:
@@ -16,10 +16,10 @@ with open("All_template_text.txt", 'r') as infile:
     for line in infile:
         text.append(line.split('\n'))
 
-for i in range(len(original)):
+for i in range(len(linked)):
     raw = text[i][0]
-    tem = original[i]["text"]
-    pl = original[i]["labels"]
+    tem = linked[i]["text"]
+    # pl = original[i]["labels"]
     ll = linked[i]["labels"]
     ents = ""
     for j in range(len(raw)):
@@ -35,7 +35,7 @@ for i in range(len(original)):
     print("Raw text:", raw)
     print("Template:", tem)
     print("All entities", el)
-    print("Plain labels:", pl)
+    # print("Plain labels:", pl)
     print("Marked labels:", ll)
     print([(w, l) for w, l in zip(el, ll)])
     print()
