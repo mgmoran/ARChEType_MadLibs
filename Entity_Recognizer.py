@@ -479,6 +479,9 @@ class CRFsuiteEntityRecognizer:
     def predict_labels(self, tokens: Sequence[str]) -> List[str]:
         features = self.feature_extractor.extract(tokens)
         return self.tagger.tag(features)
+
+    def review_weights(self):
+        return self.tagger.info()
         
 def extract_label(token: tuple) -> str:
         return token[1][:2]
@@ -533,7 +536,7 @@ def predict_dev_labels(gold_dev):
         doc.ents = []
     return [crf(doc) for doc in dev]
 
-def compile_tagged_train_data(annotations):
+def compile_tagged_train_data(annotations, sample_size):
     train = []
     for file in annotations:
         with open(file, encoding="utf8") as f:
@@ -543,7 +546,7 @@ def compile_tagged_train_data(annotations):
                 doc = ingest_json_document(review, nlp)
                 train.append(doc)
     random.shuffle(train)
-    return train[:500], train[500:]
+    return train[:sample_size], train[sample_size:]
 
 def templatize(predicted_dev):
     templates = []
@@ -582,10 +585,10 @@ def templatize(predicted_dev):
         templates.append((''.join(template),labels))
 
 
-        with open("All_template_text.txt",'w') as f:
-            for t in all_text:
-                f.write(t)
-                f.write('\n')
+        # with open("All_template_text.txt",'w') as f:
+        #     for t in all_text:
+        #         f.write(t)
+        #         f.write('\n')
 
     return templates
 
@@ -603,17 +606,17 @@ def match_ent(input, target):
 
 def export_templates(dev_predicted):
     templates = templatize(dev_predicted)
-    with open("Madlibs_Templates_linked.jsonl",'w') as f:
-        for template in templates:
-            f.write(json.dumps({"text": template[0], "labels": template[1]}) + "\n")
+    # with open("Madlibs_Templates_linked.jsonl",'w') as f:
+    #     for template in templates:
+    #         f.write(json.dumps({"text": template[0], "labels": template[1]}) + "\n")
 
 def export_entities(dev_predicted):
     entity_types = defaultdict(list)
     for doc in dev_predicted:
         for ent in doc.ents:
             entity_types[ent.label_].append(ent.text)
-    with open("Madlibs_Entities.jsonl",'w') as f:
-        f.write(json.dumps(entity_types))
+    # with open("Madlibs_Entities.jsonl",'w') as f:
+    #     f.write(json.dumps(entity_types))
 
 def main():
     global nlp, crf, train, gold_dev
@@ -640,8 +643,11 @@ def main():
         BILOUEncoder(),
     )
     crf.tagger = pycrfsuite.Tagger()
-    train, gold_dev = compile_tagged_train_data(annotated_data)
-    crf.train(train, "ap", {"max_iterations": 100}, "tmp.model")
+
+    train_size = 500
+    algo = 'l2sgd'
+    train, gold_dev = compile_tagged_train_data(annotated_data, train_size)
+    crf.train(train, algo, {"max_iterations": 100}, "tmp.model")
     dev_predicted = predict_dev_labels(gold_dev)
     scores = span_prf1_type_map(gold_dev, dev_predicted,type_map={"ANTAG":"FLAT_ANTAG", "FLAT": "FLAT_ANTAG"})
     rounder = Context(rounding=ROUND_HALF_UP, prec=4)
@@ -652,26 +658,35 @@ def main():
             str(rounder.create_decimal_from_float(num * 100)) for num in score
         ]
         print("\t".join(fields), file=sys.stderr)
+
     # Readable output for Span Scores ###
     span_scores = span_scoring_counts(gold_dev, dev_predicted,type_map ={"ANTAG":"FLAT_ANTAG", "FLAT": "FLAT_ANTAG"})
-    print("False positives:")
     falsepos = span_scores[1]
-    print(Counter([entity[1] for entity in falsepos]))
-    print("")
-    print("15 most common false positive entities:")
-    print(falsepos.most_common(15))
-    print("")
     falseneg = span_scores[2]
-    print("15 most common false negative entities:")
-    print(falsepos.most_common(15))
     occups = Counter([ent for ent in falseneg if ent[1]=='OCCUP'])
     locs = Counter([ent for ent in falseneg if ent[1] == 'LOC'])
-    print("most common false negative occupations:")
+    print("False positives:")
+    print(Counter([entity[1] for entity in falsepos]))
+    print()
+    print("False negatives:")
+    print(Counter([entity[1] for entity in falseneg]))
+    print()
+    print("15 most common false positive entities:")
+    print(falsepos.most_common(15))
+    print()
+    print("15 most common false negative entities:")
+    print(falseneg.most_common(15))
+    print()
+    print("15 most common false negative for occupations:")
     print(occups.most_common(15))
-    print("most common false negative locs=")
+    print()
+    print("15 most common false negative for locations:")
     print(locs.most_common(15))
+    print()
 
     export_templates(dev_predicted)
     export_entities(dev_predicted)
+
+
 if __name__ == "__main__":
     main()
